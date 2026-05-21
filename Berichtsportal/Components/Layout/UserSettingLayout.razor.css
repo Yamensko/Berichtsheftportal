@@ -1,0 +1,10 @@
+﻿.navbar-nav {
+    margin-left: auto;
+    position: sticky;
+    right: 0;
+    z-index: 1060;
+}
+
+.dropdown-menu {
+    z-index: 2000;
+}

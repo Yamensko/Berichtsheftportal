@@ -1,0 +1,468 @@
+﻿/* --- BASIS STYLING --- */
+html, body {
+    font-family: 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+    background-color: #f8f9fa;
+    color: #1a1a1a;
+    margin: 0;
+    padding: 0;
+}
+
+/* --- LINKS & NAVIGATION --- */
+a, .btn-link {
+    color: #006bb7;
+    text-decoration: none;
+    font-weight: 600;
+    cursor: pointer;
+}
+
+    .btn-link:hover {
+        text-decoration: underline;
+    }
+
+/* --- BUTTONS & INTERAKTION --- */
+.btn-primary, .btn-submit {
+    color: #fff !important;
+    background-color: #1b6ec2;
+    border: 1px solid #1861ac;
+    padding: 10px 25px;
+    border-radius: 30px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s;
+    text-decoration: none;
+    display: inline-block;
+}
+
+    .btn-primary:hover {
+        background-color: #1861ac;
+        transform: translateY(-1px);
+    }
+
+    /* Spezial-Hover für Submit (Grün) */
+    .btn-submit:hover {
+        background-color: #28a745;
+        border-color: #218838;
+    }
+
+    .btn-primary:active, .btn-submit:active {
+        transform: scale(0.98);
+    }
+
+.btn-cancel {
+    color: #fff !important;
+    background-color: darkred;
+    border: 1px solid red;
+    padding: 10px 25px;
+    border-radius: 30px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s;
+    text-decoration: none;
+    display: inline-block;
+}
+
+    .btn-cancel:hover {
+        background-color: palevioletred;
+        border-color: indianred;
+    }
+
+/* Navigations-Buttons (Pfeile & Pillen) */
+.btn-nav, .btn-pill {
+    background: #ffffff;
+    border: 1px solid #dcdcdc;
+    color: #444;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.2s;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+}
+
+.btn-nav {
+    width: 35px;
+    height: 35px;
+    border-radius: 50%;
+}
+
+.btn-pill {
+    width: auto;
+    padding: 0 20px;
+    border-radius: 20px;
+    font-size: 0.9rem;
+}
+
+    .btn-nav:hover, .btn-pill:hover {
+        background: #f0f0f0;
+        border-color: #bbb;
+    }
+
+/* Fokus-Effekt */
+.btn:focus, .btn-nav:focus, .form-control:focus, .report-textarea:focus {
+    outline: none;
+    box-shadow: 0 0 0 0.1rem white, 0 0 0 0.25rem #258cfb;
+}
+
+/* --- LAYOUT KOMPONENTEN (Report Seite) --- */
+.dashboard-wrapper {
+    padding: 2rem;
+    max-width: 950px;
+    margin: 0 auto;
+}
+
+.header-nav {
+    display: flex;
+    align-items: center;
+    gap: 15px;
+    background: #ffffff;
+    padding: 6px 15px;
+    border-radius: 35px;
+    border: 1px solid #eee;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.05);
+}
+
+.overview-title {
+    font-size: 2.2rem;
+    font-weight: 700;
+    margin: 0;
+    color: #1a1a1a;
+}
+
+.period-label {
+    font-weight: 600;
+    font-size: 1rem;
+    color: #333;
+    min-width: 120px;
+    text-align: center;
+}
+
+/* --- GRID & DASHBOARD KREISE (Report Seite) --- */
+.grid-container.rtl-grid {
+    display: grid;
+    grid-template-columns: repeat(6, 1fr);
+    gap: 25px;
+    background-color: #f2f2f2;
+    padding: 40px;
+    border-radius: 20px;
+    direction: rtl;
+}
+
+.report-circle {
+    direction: ltr;
+    width: 75px;
+    height: 75px;
+    background-color: #ffffff;
+    border-radius: 50%;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    border: 1px solid #dcdcdc;
+    transition: all 0.2s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+    margin: 0 auto;
+}
+
+    .report-circle:hover:not(.disabled) {
+        transform: scale(1.15);
+        border-color: #007bff;
+        box-shadow: 0 8px 20px rgba(0,0,0,0.12);
+        z-index: 10;
+    }
+
+    /* Status-Farben für Kreise (Report Seite) */
+    .report-circle.draft {
+        background-color: white;
+        border-color: #fff;
+        color: black;
+    }
+
+    .report-circle.submitted {
+        background-color: #CDA02D;
+        color: white;
+        border-color: #e68a00;
+    }
+
+    .report-circle.approved {
+        background-color: #CBECCD;
+        border-color: #28a745;
+        color: #28a745;
+    }
+
+    .report-circle.rejected {
+        background-color: #CD2D72;
+        border-color: darkred;
+        color: white;
+    }
+
+    .report-circle.disabled {
+        background-color: #e0e0e0;
+        color: #999;
+        cursor: not-allowed;
+        border: 1px dashed #bbb;
+        opacity: 0.6;
+    }
+
+
+/* --- AUSBILDER DASHBOARD TOP-BAR FIX --- */
+.top-bar {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 20px;
+    /* Macht die gesamte Leiste sticky, falls gewünscht: */
+    position: sticky;
+    left: 0;
+    z-index: 15; /* Höher als .sticky-col (10) */
+    background-color: #f8f9fa; /* Hintergrundfarbe passend zum Body, damit es nicht transparent ist */
+    padding: 10px 0;
+}
+
+
+
+.year-filter {
+    background: #ffffff;
+    padding: 5px 15px;
+    border-radius: 30px;
+    border: 1px solid #eee;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.05);
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    /* Dies hält den Filter links im Sichtfeld, auch wenn man nach rechts scrollt */
+    position: sticky;
+    right: 20px; /* Bleibt rechts im sichtbaren Bereich kleben */
+}
+
+    .year-filter select {
+        padding: 5px 10px;
+        border-radius: 5px;
+        border: 1px solid #ccc;
+        font-weight: bold;
+        cursor: pointer;
+    }
+
+.table-wrapper {
+    max-width: 100%;
+    overflow-x: auto;
+    background: #fff;
+    border-radius: 8px;
+    border: 1px solid #ddd;
+    position: relative;
+}
+
+.report-table {
+    border-collapse: separate;
+    border-spacing: 0;
+    width: max-content;
+    min-width: 100%;
+}
+
+    .report-table th, .report-table td {
+        border: 1px solid #ddd;
+        text-align: center;
+        padding: 8px;
+        min-width: 96px;
+    }
+
+/* Sticky Column für Namen */
+.report-table .sticky-col {
+    position: sticky !important;
+    left: 0 !important;
+    z-index: 20;
+    background-color: #ffffff !important;
+    width: 225px;
+    min-width: 225px;
+    max-width: 225px;
+    box-shadow: 2px 0 5px rgba(0,0,0,0.1);
+    text-align: left !important;
+}
+
+.report-table thead .sticky-col {
+    z-index: 30;
+}
+
+
+.month-header {
+    background-color: #f1f3f4;
+    font-weight: 600;
+    color: #5f6368;
+}
+
+.kw-header {
+    background-color: #fff;
+    font-size: 0.8rem;
+}
+
+/* Status Boxen in der Tabelle */
+.cell-box {
+    width: 80px;
+    height: 30px;
+    display: inline-flex;
+    border-radius: 6px;
+    cursor: pointer;
+    justify-content: center;
+    align-items: center;
+    transition: opacity 0.2s;
+    color: white;
+    font-weight: bold;
+}
+
+/* Status Farben für Tabelle & Boxen */
+.approved {
+    background-color: #4caf50;
+}
+
+.submitted {
+    background-color: #2196f3;
+}
+
+.rejected {
+    background-color: palevioletred;
+}
+
+.draft {
+    background-color: darkgray;
+}
+
+.empty {
+    background-color: darkgray;
+    cursor: not-allowed;
+}
+
+/* --- EDITOR ELEMENTE --- */
+.editor-container {
+    background: white;
+    padding: 2rem;
+    border-radius: 16px;
+    box-shadow: 0 4px 15px rgba(0,0,0,0.05);
+}
+
+.report-textarea {
+    width: 100%;
+    border-radius: 12px;
+    border: 1px solid #dcdcdc;
+    padding: 1.5rem;
+    font-size: 1.1rem;
+    font-family: inherit;
+    line-height: 1.6;
+    min-height: 450px;
+    resize: vertical;
+}
+
+.action-bar {
+    margin-top: 2rem;
+    display: flex;
+    align-items: center;
+    gap: 20px;
+}
+
+/* --- ICONS --- */
+.icon-file {
+    width: 30px;
+    height: 20px;
+    display: block;
+    background-image: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128"><path fill="%23333" d="M32,122h64c7.2,0,13-5.8,13-13V29c0-6.1-2.4-11.9-6.7-16.3S92.1,6,86,6L32,6c-7.2,0-13,5.8-13,13v90 C19,116.2,24.8,122,32,122z M86.1,92h-44c-1.7,0-3-1.3-3-3s1.3-3,3-3h44c1.7,0,3,1.3,3,3S87.8,92,86.1,92z M98,17 c2.5,2.5,4.1,5.6,4.7,9H96c-3.9,0-7-3.1-7-7l0-6.7C92.4,12.9,95.5,14.5,98,17z M41.9,56h44c1.7,0,3,1.3,3,3s-1.3,3-3,3h-44 c-1.7,0-3-1.3-3-3S40.2,56,41.9,56z M41.9,71h44c1.7,0,3,1.3,3,3s-1.3,3-3,3h-44c-1.7,0-3-1.3-3-3S40.2,71,41.9,71z"></path></svg>');
+    background-repeat: no-repeat;
+    background-size: contain;
+    line-height: 0px; /* Entfernt typische Text-Abstände */
+}
+
+.icon-replay {
+    width: 20px;
+    height: 20px;
+    display: inline-block;
+    Background-image: url('https://img.icons8.com/ios-glyphs/30/000000/replay.png');
+    background-repeat: no-repeat;
+    background-size: contain;
+    background-position: center;
+}
+
+/* --- RESPONSIVE --- */
+@media (max-width: 768px) {
+    .grid-container.rtl-grid {
+        grid-template-columns: repeat(3, 1fr);
+        padding: 20px;
+    }
+
+    .top-bar {
+        flex-direction: column;
+        gap: 1rem;
+        align-items: flex-start;
+    }
+
+    .sticky-col {
+        position: sticky !important;
+        min-width: 225px;
+        flex-direction: column;
+    }
+}
+
+.filter-bar {
+    display: flex;
+    gap: 15px;
+    margin-bottom: 15px;
+    align-items: center;
+}
+
+    .filter-bar input {
+        padding: 6px 10px;
+        border-radius: 6px;
+        border: 1px solid #ccc;
+        min-width: 200px;
+    }
+
+.modal-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(0,0,0,0.5);
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    z-index: 999;
+}
+
+.modal-box {
+    background: white;
+    padding: 25px;
+    border-radius: 12px;
+    width: 600px;
+    max-height: 80vh;
+    overflow-y: auto;
+}
+
+.modal-content {
+    background: #f9f9f9;
+    padding: 15px;
+    border-radius: 8px;
+    margin-bottom: 15px;
+}
+
+.modal-actions {
+    margin-top: 15px;
+    display: flex;
+    gap: 10px;
+}
+
+.btn-reject {
+    background: crimson;
+    color: white;
+    border: none;
+    padding: 8px 15px;
+    border-radius: 6px;
+}
+
+.ql-editor {
+    min-height: 400px;
+}
+.save-status{
+    display:flex;
+    justify-content: space-between;
+}
+
+.z-speichern{
+    background-color: lightgray;
+}

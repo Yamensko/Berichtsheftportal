@@ -1,0 +1,43 @@
+@page "/"
+@attribute [Authorize]
+@rendermode InteractiveServer
+@using Berichtsportal.Services
+@inject AuthenticationStateProvider AuthStateProvider
+@inject UserServices UserService
+@inject NavigationManager NavManager
+
+<p>Weiterleiten...</p>
+
+@code {
+    protected override async Task OnInitializedAsync()
+    {
+        var authState = await AuthStateProvider.GetAuthenticationStateAsync();
+        var currentUser = await UserService.GetCurrentUserAsync(authState.User);
+
+        if (currentUser == null)
+        {
+            NavManager.NavigateTo("/access-denied");
+            return;
+        }
+
+        if (string.Equals(
+                currentUser.Role.RoleName,
+                "Ausbilder",
+                StringComparison.OrdinalIgnoreCase))
+        {
+            NavManager.NavigateTo("/ausbilder-dashboard");
+            return;
+        }
+
+        if (string.Equals(
+                currentUser.Role.RoleName,
+                "Auszubildender",
+                StringComparison.OrdinalIgnoreCase))
+        {
+            NavManager.NavigateTo("/reports");
+            return;
+        }
+
+        NavManager.NavigateTo("/access-denied");
+    }
+}

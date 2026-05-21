@@ -1,0 +1,105 @@
+﻿@using Berichtsportal.Models
+@using Berichtsportal.Services
+@inject AuthenticationStateProvider AuthStateProvider
+@inject UserServices UserService
+
+<div class="top-row ps-3 navbar navbar-dark">
+    <div class="container-fluid">
+        <a class="navbar-brand" href="">Berichtsportal</a>
+    </div>
+</div>
+
+<input type="checkbox" title="Navigation menu" class="navbar-toggler" />
+
+<div class="nav-scrollable" onclick="document.querySelector('.navbar-toggler').click()">
+    <nav class="nav flex-column">
+        @if (HasRole("Auszubildender"))
+        {
+            <div class="nav-item px-3">
+                <NavLink class="nav-link" href="reports">
+                    <span class="bi bi-list-nested-nav-menu" aria-hidden="true"></span> Wochenberichte
+                </NavLink>
+            </div>
+
+            <div class="nav-item px-3">
+                <NavLink class="nav-link" href="export">
+                    <span class="bi bi-list-nested-nav-menu" aria-hidden="true"></span> Export
+                </NavLink>
+            </div>
+        }
+
+        @if (HasRole("Ausbilder"))
+        {
+            <div class="nav-item px-3">
+                <NavLink class="nav-link" href="Ausbilder-Dashboard">
+                    <span class="bi bi-list-nested-nav-menu" aria-hidden="true"></span> Review
+                </NavLink>
+            </div>
+        }
+    </nav>
+</div>
+
+@code {
+    private User? currentUser;
+    private string? fallbackName;
+
+    private string DisplayName
+    {
+        get
+        {
+            if (currentUser != null)
+            {
+                return $"{currentUser.FirstName} {currentUser.LastName}".Trim();
+            }
+
+            return fallbackName ?? "Benutzer";
+        }
+    }
+
+    private string Initials
+    {
+        get
+        {
+            if (currentUser != null)
+            {
+                return string.Concat(
+                    currentUser.FirstName.FirstOrDefault(),
+                    currentUser.LastName.FirstOrDefault()).ToUpperInvariant();
+            }
+
+            var nameParts = DisplayName
+                .Split(' ', StringSplitOptions.RemoveEmptyEntries);
+
+            if (nameParts.Length >= 2)
+            {
+                return string.Concat(
+                    nameParts[0].FirstOrDefault(),
+                    nameParts[1].FirstOrDefault()).ToUpperInvariant();
+            }
+
+            return DisplayName[..Math.Min(DisplayName.Length, 2)].ToUpperInvariant();
+        }
+    }
+
+    protected override async Task OnInitializedAsync()
+    {
+        var authState = await AuthStateProvider.GetAuthenticationStateAsync();
+        var principal = authState.User;
+
+        if (principal.Identity?.IsAuthenticated != true)
+            return;
+
+        fallbackName = principal.Identity?.Name;
+        currentUser = await UserService.GetCurrentUserAsync(principal);
+    }
+
+    private bool HasRole(string roleName)
+    {
+        return string.Equals(
+            currentUser?.Role?.RoleName,
+            roleName,
+            StringComparison.OrdinalIgnoreCase);
+    }
+
+}
+

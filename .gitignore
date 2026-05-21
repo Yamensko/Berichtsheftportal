@@ -1,0 +1,23 @@
+# Visual Studio
+.vs/
+*.user
+*.suo
+*.cache
+
+# Build output
+bin/
+obj/
+
+# Node
+node_modules/
+package-lock.json
+package.json
+
+# Secrets
+appsettings.Development.json
+
+# Misc
+*.log
+156
+Speichern
+extensibility.settings.VisualStudio.json

@@ -1,0 +1,121 @@
+﻿@page "/export"
+@attribute [Authorize]
+@rendermode InteractiveServer
+@using Berichtsportal.Models
+@using Berichtsportal.Services
+@inject AuthenticationStateProvider AuthStateProvider
+@inject UserServices UserService
+@inject NavigationManager NavManager
+
+<div class="dashboard-wrapper">
+    <div class="top-bar">
+        <h1 class="overview-title">Export</h1>
+
+        <button class="btn-nav btn-pill" @onclick="GoBack">
+            Zur Übersicht
+        </button>
+    </div>
+
+    @if (currentUser == null)
+    {
+        <div class="editor-container">
+            <p>Lade Benutzerdaten...</p>
+        </div>
+    }
+    else
+    {
+        <div class="editor-container">
+            <h3>Berichtshefte als PDF exportieren</h3>
+
+            <p>
+                Der Export wird für @currentUser.FirstName @currentUser.LastName erstellt.
+                Es werden die bereits gespeicherten Wochenberichte im gewählten Zeitraum berücksichtigt.
+            </p>
+
+            <div class="filter-bar">
+                <label>
+                    Von
+                    <input class="form-control" type="date" @bind="fromDate" />
+                </label>
+
+                <label>
+                    Bis
+                    <input class="form-control" type="date" @bind="toDate" />
+                </label>
+            </div>
+
+            <div class="action-bar">
+                <button class="btn-submit" @onclick="ExportRange">
+                    Zeitraum exportieren
+                </button>
+
+                <button class="btn-primary" @onclick="ExportAll">
+                    Alle Berichtshefte exportieren
+                </button>
+            </div>
+
+            @if (!string.IsNullOrWhiteSpace(statusMessage))
+            {
+                <div class="alert alert-warning">
+                    @statusMessage
+                </div>
+            }
+        </div>
+    }
+</div>
+
+@code {
+    private User? currentUser;
+    private DateTime? fromDate;
+    private DateTime? toDate;
+    private string statusMessage = "";
+
+    protected override async Task OnInitializedAsync()
+    {
+        var authState = await AuthStateProvider.GetAuthenticationStateAsync();
+        currentUser = await UserService.GetCurrentUserAsync(authState.User);
+
+        if (currentUser == null)
+            return;
+
+        if (!string.Equals(currentUser.Role.RoleName, "Auszubildender", StringComparison.OrdinalIgnoreCase))
+        {
+            NavManager.NavigateTo("/access-denied");
+            return;
+        }
+
+        fromDate = currentUser.AusbildungBeginn ?? DateTime.Today.AddMonths(-1);
+        toDate = DateTime.Today;
+    }
+
+    private void ExportRange()
+    {
+        statusMessage = "";
+
+        if (!fromDate.HasValue || !toDate.HasValue)
+        {
+            statusMessage = "Bitte einen gueltigen Zeitraum auswaehlen.";
+            return;
+        }
+
+        if (fromDate.Value.Date > toDate.Value.Date)
+        {
+            statusMessage = "Das Von-Datum darf nicht nach dem Bis-Datum liegen.";
+            return;
+        }
+
+        var url = $"/export/pdf?from={fromDate.Value:yyyy-MM-dd}&to={toDate.Value:yyyy-MM-dd}";
+        NavManager.NavigateTo(url, forceLoad: true);
+    }
+
+    private void ExportAll()
+    {
+        NavManager.NavigateTo("/export/pdf", forceLoad: true);
+    }
+
+    private void GoBack()
+    {
+        NavManager.NavigateTo("/reports");
+    }
+}
+

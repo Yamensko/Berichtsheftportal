@@ -1,0 +1,368 @@
+﻿@page "/report-editor/{Year:int}/{Week:int}"
+@attribute [Authorize]
+@using Berichtsportal.Models
+@using Berichtsportal.Services
+@rendermode InteractiveServer
+@inject ReportService ReportService
+@inject AuthenticationStateProvider AuthStateProvider
+@inject UserServices UserService
+@inject NavigationManager NavManager
+@implements IDisposable
+
+<div class="dashboard-wrapper">
+
+    <h1 class="overview-title">Wochenbericht</h1>
+
+    <div class="top-bar">
+        <div class="header-nav">
+            <button class="btn-nav" @onclick="GoToPrevWeek">◀</button>
+            <span class="period-label">KW @Week / @Year</span>
+            <button class="btn-nav" @onclick="GoToNextWeek">▶</button>
+        </div>
+
+        <button class="btn-nav btn-pill" @onclick="Cancel">
+            Zur Übersicht
+        </button>
+    </div>
+
+    <span class="date-range">
+        Arbeitswoche (Mo. - Fr.): @CurrentWeekRange
+    </span>
+
+    @if (currentReport == null)
+    {
+        <div class="editor-container">
+            <p>Lade Bericht...</p>
+        </div>
+    }
+    else
+    {
+        <br />
+        @if (IsLocked)
+        {
+            <button class="btn-primary" @onclick="EnableEditing">
+                Bearbeiten
+            </button>
+        }
+
+        <div class="editor-container">
+
+            <div class="save-status">
+                @saveStatus
+                @* Manueller Speicher-Button *@
+                <button class="btn-pill z-speichern" @onclick="ManuallySave">
+                    💾 Zwischenspeichern
+                </button>
+            </div>
+
+            @* @key sorgt dafür, dass der Editor bei Wochenwechsel neu initialisiert wird *@
+            <div @key="@($"editor-wrapper-{Year}-{Week}")">
+                <RichTextEditor @ref="editor"
+                                ReadOnly="@IsLocked"
+                                Theme="snow"
+                                Placeholder="Was hast du diese Woche gemacht?"
+                                OnTextContentChange="HandleEditorChange">
+
+                    <ToolbarContent>
+                        <select class="ql-header">
+                            <option value="1"></option>
+                            <option value="2"></option>
+                            <option value="3"></option>
+                            <option value="4"></option>
+                            <option value="5"></option>
+                            <option selected></option>
+                        </select>
+
+                        <span class="ql-formats">
+                            <button class="ql-bold"></button>
+                            <button class="ql-italic"></button>
+                            <button class="ql-underline"></button>
+                            <button class="ql-strike"></button>
+                        </span>
+
+                        <span class="ql-formats">
+                            <select class="ql-color"></select>
+                            <select class="ql-background"></select>
+                        </span>
+
+                        <span>
+                            <button class="ql-list" value="ordered"></button>
+                            <button class="ql-list" value="bullet"></button>
+                        </span>
+
+                        <span class="ql-formats">
+                            <button class="ql-link"></button>
+                        </span>
+
+                        <select class="ql-size">
+                            <option value="small"></option>
+                            <option selected></option>
+                            <option value="large"></option>
+                            <option value="huge"></option>
+                        </select>
+                    </ToolbarContent>
+                </RichTextEditor>
+            </div>
+
+            @if (currentReport.Status == ReportStatus.Rejected)
+            {
+                <div class="alert alert-warning">
+                    ⚠️ Dieser Bericht wurde zurückgewiesen. Bitte überarbeiten.
+                </div>
+            }
+            @if (currentReport.Status == ReportStatus.Approved)
+            {
+                <div class="alert alert-success">
+                    ✅ Bericht wurde vom Ausbilder akzeptiert
+                </div>
+            }
+
+            <div class="comment-section">
+                <h4>Feedback vom Ausbilder:</h4>
+                @if (currentReport.Comments != null && currentReport.Comments.Any())
+                {
+                    @foreach (var c in currentReport.Comments)
+                    {
+                        <div class="comment-box">
+                            <b>@c.CreatedAt?.ToString("dd.MM.yyyy")</b><br />
+                            @c.CommentText
+                        </div>
+                    }
+                }
+                else
+                {
+                    <p>Kein Feedback vorhanden</p>
+                }
+            </div>
+
+            @if (currentReport.Status == ReportStatus.Draft || currentReport.Status == ReportStatus.Rejected)
+            {
+                <div class="action-bar">
+                    <button class="btn-submit" @onclick="Freigeben">
+                        Freigeben
+                    </button>
+                </div>
+            }
+        </div>
+    }
+</div>
+
+@code {
+    [Parameter] public int Year { get; set; }
+    [Parameter] public int Week { get; set; }
+
+    private RichTextEditor? editor;
+    private System.Timers.Timer? saveTimer;
+    private string saveStatus = "Bereit";
+    private Report? currentReport;
+    private bool isEditing = false;
+    private bool isDisposed = false;
+    private User? currentUser;
+
+    private bool IsLocked =>
+        currentReport != null &&
+        (currentReport.Status == ReportStatus.Submitted || currentReport.Status == ReportStatus.Approved) &&
+        !isEditing;
+
+    private string CurrentWeekRange
+    {
+        get
+        {
+            DateTime start = GetFirstDayOfWeek(Year, Week);
+            DateTime end = start.AddDays(4);
+            return $"{start:dd.MM.yyyy} - {end:dd.MM.yyyy}";
+        }
+    }
+
+    protected override async Task OnParametersSetAsync()
+    {
+
+        var authState = await AuthStateProvider.GetAuthenticationStateAsync();
+
+        var principal = authState.User;
+
+        currentUser = await UserService.GetCurrentUserAsync(principal);
+
+        if (currentUser == null)
+            return;
+
+        if (!string.Equals(
+                currentUser.Role.RoleName,
+                "Auszubildender",
+                StringComparison.OrdinalIgnoreCase))
+        {
+            NavManager.NavigateTo("/access-denied");
+            return;
+        }
+
+        currentReport = await ReportService.GetReportWithCommentsByWeekAsync(currentUser.UserId, Year, Week);
+
+        if (currentReport == null)
+        {
+            currentReport = await ReportService.GetOrCreateReportAsync( currentUser.UserId, Year, Week);
+        }
+
+        if (editor != null && currentReport != null)
+        {
+            await editor.LoadHTMLContent(currentReport.Content ?? "");
+        }
+
+        saveStatus = "Gespeichert";
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            await Task.Delay(300); // Zeit für JS-Initialisierung
+            if (currentReport != null && editor != null)
+            {
+                await editor.LoadHTMLContent(currentReport.Content ?? "");
+                StateHasChanged();
+            }
+        }
+    }
+
+    private void HandleEditorChange(string text)
+    {
+        saveStatus = "Änderungen erkannt...";
+        ResetTimer();
+    }
+
+    private void ResetTimer()
+    {
+        saveTimer?.Stop();
+        saveTimer?.Dispose();
+
+        saveTimer = new System.Timers.Timer(2000); // 3 Sekunden Auto-Save
+        saveTimer.Elapsed += async (_, _) => await AutoSave();
+        saveTimer.AutoReset = false;
+        saveTimer.Start();
+    }
+
+    private async Task ManuallySave()
+    {
+        if (editor == null)
+        {
+            return;
+        }
+        saveStatus = "Speichere...";
+        await SaveData();
+        saveStatus = "gespeichert ✅";
+        saveTimer?.Stop();
+        StateHasChanged();
+    }
+
+    private async Task AutoSave()
+    {
+        if (isDisposed || currentReport == null || editor == null)
+            return;
+
+        try
+        {
+            await InvokeAsync(async () =>
+            {
+                if (isDisposed)
+                    return;
+
+                await SaveData();
+
+                saveStatus = "Automatisch gespeichert";
+
+                StateHasChanged();
+            });
+        }
+        catch
+        {
+            // Ignorieren wenn Component bereits zerstört wurde
+        }
+    }
+
+    private async Task SaveData()
+    {
+        if (isDisposed || currentReport == null || editor == null)
+            return;
+
+        try
+        {
+            string html = await editor.GetHTML();
+
+            if (currentReport.Content != html)
+            {
+                currentReport.Content = html;
+
+                await ReportService.SaveReportAsync(currentReport);
+            }
+        }
+        catch
+        {
+            // JS Interop wurde zerstört
+        }
+    }
+
+    private async Task Freigeben()
+    {
+        if (currentReport == null || currentUser == null || IsLocked) return;
+
+        await SaveData();
+        isEditing = false;
+
+        try
+        {
+            var authState = await AuthStateProvider.GetAuthenticationStateAsync();
+            await ReportService.SubmitReportAsync(
+                currentReport.ReportId, currentUser.UserId, authState.User);
+        }
+        catch (InvalidOperationException)
+        {
+            currentReport.Status = ReportStatus.Submitted;
+            await ReportService.SaveReportAsync(currentReport);
+        }
+
+        NavManager.NavigateTo("/reports");
+    }
+
+    private async Task EnableEditing()
+    {
+        if (currentReport == null) return;
+        isEditing = true;
+        currentReport.Status = ReportStatus.Draft;
+        await ReportService.SaveReportAsync(currentReport);
+        saveStatus = "Bearbeitung aktiv";
+    }
+
+    public void Dispose()
+    {
+        isDisposed = true;
+
+        saveTimer?.Stop();
+        saveTimer?.Dispose();
+    }
+
+    // Navigation-Hilfsmethoden
+    private void GoToPrevWeek() => Navigate(-7);
+    private void GoToNextWeek() => Navigate(7);
+
+    private void Navigate(int days)
+    {
+        var date = GetFirstDayOfWeek(Year, Week).AddDays(days);
+        var cal = CultureInfo.CurrentCulture.Calendar;
+        int newWeek = cal.GetWeekOfYear(date, CalendarWeekRule.FirstFourDayWeek, DayOfWeek.Monday);
+        int newYear = date.Year;
+        if (newWeek > 50 && date.Month == 1) newYear--;
+        NavManager.NavigateTo($"/report-editor/{newYear}/{newWeek}");
+    }
+
+    private void Cancel() => NavManager.NavigateTo("/reports");
+
+    private DateTime GetFirstDayOfWeek(int year, int week)
+    {
+        DateTime jan1 = new(year, 1, 1);
+        int daysOffset = DayOfWeek.Thursday - jan1.DayOfWeek;
+        DateTime firstThursday = jan1.AddDays(daysOffset);
+        var cal = CultureInfo.CurrentCulture.Calendar;
+        int firstWeek = cal.GetWeekOfYear(firstThursday, CalendarWeekRule.FirstFourDayWeek, DayOfWeek.Monday);
+        if (firstWeek <= 1) week--;
+        return firstThursday.AddDays(week * 7 - 3);
+    }
+}

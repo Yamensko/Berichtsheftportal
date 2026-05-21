@@ -1,0 +1,29 @@
+﻿<Router AppAssembly="typeof(Program).Assembly">
+    <Found Context="routeData">
+        <AuthorizeRouteView RouteData="routeData" DefaultLayout="typeof(Layout.MainLayout)">
+            <Authorizing>
+                <LayoutView Layout="typeof(Layout.MainLayout)">
+                    <p>Pruefe Berechtigung...</p>
+                </LayoutView>
+            </Authorizing>
+            <NotAuthorized Context="authState">
+                <LayoutView Layout="typeof(Layout.MainLayout)">
+                    @if (authState.User.Identity?.IsAuthenticated == true)
+                    {
+                        <h1>Zugriff verweigert</h1>
+                        <p>Du hast keine Berechtigung fuer diese Seite.</p>
+                    }
+                    else
+                    {
+                        <h1>Login erforderlich</h1>
+                        <p>Bitte melde dich an, um das Berichtsportal zu nutzen.</p>
+                        <a class="btn btn-primary" href="/MicrosoftIdentity/Account/SignIn">
+                            Login
+                        </a>
+                    }
+                </LayoutView>
+            </NotAuthorized>
+        </AuthorizeRouteView>
+        <FocusOnNavigate RouteData="routeData" Selector="h1" />
+    </Found>
+</Router>

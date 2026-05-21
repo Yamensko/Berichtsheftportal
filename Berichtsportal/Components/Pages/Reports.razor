@@ -1,0 +1,175 @@
+﻿@page "/reports"
+@attribute [Authorize]
+@rendermode InteractiveServer
+@using Berichtsportal.Models
+@using Berichtsportal.Services
+@using System.Globalization
+@inject NavigationManager NavManager
+@inject ReportService ReportService
+@inject UserServices UserService
+@inject AuthenticationStateProvider AuthStateProvider
+
+
+<div class="dashboard-wrapper">
+    <div class="top-bar">
+        <h1 class="overview-title">Übersicht</h1>
+
+        @* Navigation mit dem neuen Kapsel-Design *@
+        <div class="header-nav">
+            <button class="btn-nav" @onclick="PrevHalfYear">◀</button>
+            <span class="period-label">
+                @(isSecondHalf ? "2. Halbjahr" : "1. Halbjahr") @currentYear
+            </span>
+            <button class="btn-nav" @onclick="NextHalfYear">▶</button>
+        </div>
+
+        @* Button im einheitlichen Pill-Design (falls du dort noch eine Aktion brauchst, 
+           ansonsten dient er hier der optischen Symmetrie zur Editor-Bar) *@
+        <div style="width: 120px;"></div> @* Platzhalter für Symmetrie oder ein Profil-Button *@
+    </div>
+
+    <span class="date-range">Zeitraum: @CurrentPeriodDates</span>
+
+    <div class="grid-container rtl-grid">
+        @foreach (var item in displayReports)
+        {
+            bool isActive = IsInTrainingPeriod(item.CalendarWeek, item.Year);
+
+            @* Die Kreise nutzen nun die konsistenten Status-Farben aus dem CSS *@
+
+            // Hier casten wir den Status für die CSS-Klasse und die Icons
+            var statusEnum = (ReportStatus)item.Status;
+            <div class="report-circle @statusEnum.ToCssClass() @(isActive ? "" : "disabled")"
+                 @onclick="() => { if (isActive) OpenEditor(item.CalendarWeek); }">
+
+                <span class="kw-label">@item.CalendarWeek</span>
+
+                @if (!isActive)
+                {
+                    <span>🔒</span>
+                }
+                @switch (statusEnum)
+                {
+                    case ReportStatus.Submitted:
+                        <span>⏳</span>
+                        break;
+
+                    case ReportStatus.Approved:
+                        <span>✓</span>
+                        break;
+
+                    case ReportStatus.Rejected:
+                        <span class="icon-replay"></span>
+                        break;
+                }
+            </div>
+        }
+    </div>
+</div>
+
+@code {
+    // ... (Code-Block bleibt identisch zu deiner Vorlage) ...
+    private List<Report> displayReports = new();
+    private bool isSecondHalf = false;
+    private int currentYear;
+    private User? currentUser;
+
+    protected override async Task OnInitializedAsync()
+    {
+        var authState = await AuthStateProvider.GetAuthenticationStateAsync();
+
+        var user = authState.User;
+
+        currentUser = await UserService.GetCurrentUserAsync(user);
+
+        if (currentUser == null)
+            return;
+
+        if (!string.Equals(
+                currentUser.Role.RoleName,
+                "Auszubildender",
+                StringComparison.OrdinalIgnoreCase))
+        {
+            NavManager.NavigateTo("/access-denied");
+            return;
+        }
+
+        currentYear = DateTime.Now.Year;
+        isSecondHalf = DateTime.Now.Month > 6;
+
+        await LoadDashboard();
+    }
+
+    private async Task LoadDashboard()
+    {
+        int startWeek = isSecondHalf ? 27 : 1;
+        displayReports = new List<Report>();
+        for (int i = 0; i < 26; i++)
+        {
+            displayReports.Add(new Report { CalendarWeek = startWeek + i, Year = currentYear, Status = 0 });
+        }
+
+        if (currentUser == null)
+            return;
+
+        var dbReports = await ReportService.GetReportsForPeriodAsync(
+                currentUser.UserId,
+                currentYear,
+                isSecondHalf);
+
+        foreach (var db in dbReports)
+        {
+            var item = displayReports.FirstOrDefault(x => x.CalendarWeek == db.CalendarWeek);
+            if (item != null)
+            {
+                item.Status = db.Status;
+                item.ReportId = db.ReportId;
+            }
+        }
+    }
+
+    private async Task NextHalfYear()
+    {
+        if (!isSecondHalf) isSecondHalf = true;
+        else { isSecondHalf = false; currentYear++; }
+        await LoadDashboard();
+    }
+
+    private async Task PrevHalfYear()
+    {
+        if (isSecondHalf) isSecondHalf = false;
+        else { isSecondHalf = true; currentYear--; }
+        await LoadDashboard();
+    }
+
+    private bool IsInTrainingPeriod(int week, int year)
+    {
+        if (currentUser?.AusbildungBeginn == null || currentUser?.AusbildungEnde == null) return false;
+        DateTime weekStart = GetFirstDayOfWeek(year, week);
+        return weekStart >= currentUser.AusbildungBeginn.Value && weekStart <= currentUser.AusbildungEnde.Value;
+    }
+
+    private DateTime GetFirstDayOfWeek(int year, int week)
+    {
+        DateTime jan1 = new(year, 1, 1);
+        int daysOffset = DayOfWeek.Thursday - jan1.DayOfWeek;
+        DateTime firstThursday = jan1.AddDays(daysOffset);
+        var cal = CultureInfo.CurrentCulture.Calendar;
+        int firstWeek = cal.GetWeekOfYear(firstThursday, CalendarWeekRule.FirstFourDayWeek, DayOfWeek.Monday);
+        if (firstWeek <= 1) week--;
+        return firstThursday.AddDays(week * 7 - 3);
+    }
+
+    private string CurrentPeriodDates
+    {
+        get
+        {
+            if (displayReports == null || !displayReports.Any()) return "";
+            DateTime start = GetFirstDayOfWeek(currentYear, displayReports.First().CalendarWeek);
+            DateTime end = GetFirstDayOfWeek(currentYear, displayReports.Last().CalendarWeek).AddDays(6);
+            return $"{start:dd.MM.yyyy} bis {end:dd.MM.yyyy}";
+        }
+    }
+
+    private void OpenEditor(int week) => NavManager.NavigateTo($"/report-editor/{currentYear}/{week}");
+}

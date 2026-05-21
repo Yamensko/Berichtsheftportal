@@ -1,0 +1,86 @@
+﻿@*
+@page "/azubi-report/{ReportId:int}"
+@rendermode InteractiveServer
+
+@using Berichtsportal.Models
+@using Berichtsportal.Services
+@inject ReportService ReportService
+@inject UserServices UserService
+@inject NavigationManager NavManager
+
+<h2>Report prüfen</h2>
+
+@if (report == null)
+{
+    <p>Lade...</p>
+}
+else
+{
+    <div class="report-content">
+        @report.Content
+    </div>
+
+    <h4>Kommentare</h4>
+
+    @if (report.Comments.Any())
+    {
+        @foreach (var c in report.Comments)
+        {
+            <div class="comment-box">
+                <b>@c.CreatedAt?.ToString("dd.MM.yyyy")</b><br />
+                @c.CommentText
+            </div>
+        }
+    }
+
+    <textarea @bind="commentText" placeholder="Kommentar schreiben..."></textarea>
+
+    <div class="action-bar">
+        <button class="btn-submit" @onclick="Approve">Freigeben</button>
+        <button class="btn-cancel" @onclick="Reject">Zurückweisen</button>
+    </div>
+
+    <p>@statusMessage</p>
+}
+
+@code {
+    [Parameter] public int ReportId { get; set; }
+
+    private Report? report;
+    private string commentText = "";
+    private string statusMessage = "";
+
+    private readonly Guid AusbilderId = Guid.Parse("2300617d-4d36-46f3-be83-18458bd2a5d7");
+
+    protected override async Task OnInitializedAsync()
+    {
+        report = await ReportService.GetReportWithCommentsAsync(ReportId);
+    }
+
+    private async Task Approve()
+    {
+        await ReportService.ApproveReportAsync(ReportId, AusbilderId, commentText);
+
+        statusMessage = "✅ Freigegeben!";
+        await Task.Delay(500);
+
+        NavManager.NavigateTo("/ausbilder-dashboard", true);
+    }
+
+    private async Task Reject()
+    {
+        if (string.IsNullOrWhiteSpace(commentText))
+        {
+            statusMessage = "⚠️ Bitte Kommentar eingeben";
+            return;
+        }
+
+        await ReportService.RejectReportAsync(ReportId, AusbilderId, commentText);
+
+        statusMessage = "❌ Zurückgewiesen!";
+        await Task.Delay(500);
+
+        NavManager.NavigateTo("/ausbilder-dashboard", true);
+    }
+}
+*@

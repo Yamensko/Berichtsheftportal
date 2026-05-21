@@ -1,0 +1,508 @@
+﻿@page "/ausbilder-dashboard"
+@attribute [Authorize]
+@using Berichtsportal.Models
+@using Berichtsportal.Services
+@inject ReportService ReportService
+@inject UserServices UserService
+@inject NavigationManager NavManager
+@inject AuthenticationStateProvider AuthenticationStateProvider
+@rendermode InteractiveServer
+
+<div class="top-bar">
+    <h3>Ausbilder Dashboard</h3>
+
+    <div class="year-filter">
+        <label>Anzeige für Jahr:</label>
+
+        <select @bind="selectedYear" class="form-select-sm">
+            @foreach (var year in availableYears)
+            {
+                <option value="@year">@year</option>
+            }
+        </select>
+    </div>
+</div>
+
+<div class="filter-bar">
+
+    <input type="text"
+           placeholder="Azubi suchen..."
+           @bind="searchText"
+           class="form-control" />
+
+    <label>
+        <input type="checkbox" @bind="showOnlyOpen" />
+        Nur offene Berichte
+    </label>
+
+</div>
+
+@if (azubis == null || azubis.Count == 0)
+{
+    <div class="loading-container">
+        <p>Lade Azubis und Berichte...</p>
+    </div>
+}
+else
+{
+    <div class="table-wrapper">
+
+        <table class="report-table">
+
+            <thead>
+
+                <tr>
+
+                    <th rowspan="2" class="sticky-col">Azubi</th>
+
+                    @{
+                        var monthSpans = new[]
+                        {
+                                ("Januar", 4),
+                                ("Februar", 4),
+                                ("März", 5),
+                                ("April", 4),
+                                ("Mai", 4),
+                                ("Juni", 5),
+                                ("Juli", 4),
+                                ("August", 4),
+                                ("September", 5),
+                                ("Oktober", 4),
+                                ("November", 4),
+                                ("Dezember", 5)
+                                };
+                    }
+
+                    @foreach (var month in monthSpans)
+                    {
+                        <th colspan="@month.Item2" class="month-header">
+                            @month.Item1
+                        </th>
+                    }
+
+                </tr>
+
+                <tr>
+                    @for (int week = 1; week <= 52; week++)
+                    {
+                        <th class="kw-header">
+                            KW @week
+                        </th>
+                    }
+                </tr>
+
+            </thead>
+
+            <tbody>
+
+                @foreach (var azubi in FilteredAzubis)
+                {
+                    <tr>
+
+                        <td class="sticky-col">
+
+                            <div>
+
+                                <span style="font-weight:bold; display:block;">
+                                    @azubi.FirstName @azubi.LastName
+                                </span>
+
+                                <div class="stats-row"
+                                     style="font-size: 0.8rem; margin-top: 5px;">
+
+                                    <span>
+                                        ✖️ @azubi.Reports.Count(r => r.Status == ReportStatus.Rejected)
+                                    </span>
+
+                                    <span title="Eingereicht">
+                                        ⏳ @azubi.Reports.Count(r => r.Status == ReportStatus.Submitted)
+                                    </span>
+
+                                    <span title="Freigegeben" style="font-size:15px;">
+                                        ✓ @azubi.Reports.Count(r => r.Status == ReportStatus.Approved)
+                                    </span>
+
+                                </div>
+
+                                @{
+                                    int target = GetTotalTargetWeeks(azubi);
+                                    int missing = GetMissingReportsCount(azubi);
+                                    int done = target - missing;
+                                }
+
+                                <div style="font-size:0.75rem; color:#666; margin-top:5px;">
+                                    📊 @done / @target | ⚠️ Offen: @missing
+                                </div>
+
+                            </div>
+
+                        </td>
+
+                        @for (int week = 1; week <= 52; week++)
+                        {
+                            var report = GetReportForWeek(azubi, week);
+
+                            bool isActive =
+                            IsInTrainingPeriod(azubi, week, selectedYear);
+
+                            <td class="report-cell">
+
+                                @if (isActive)
+                                {
+                                    @if (report != null)
+                                    {
+                                        var statusEnum = report.Status;
+
+                                        <div class="cell-box @statusEnum.ToCssClass()"
+                                             @onclick="() => OpenReport(report.ReportId)">
+
+                                            @switch (statusEnum)
+                                            {
+                                                case ReportStatus.Draft:
+                                                    <span class="icon-file"></span>
+                                                    break;
+
+                                                case ReportStatus.Submitted:
+                                                    <span>➜</span>
+                                                    break;
+
+                                                case ReportStatus.Approved:
+                                                    <span>✓</span>
+                                                    break;
+
+                                                case ReportStatus.Rejected:
+                                                    <span class="icon-replay"></span>
+                                                    break;
+                                            }
+
+                                        </div>
+                                    }
+                                    else
+                                    {
+                                        <div class="cell-box empty">
+                                            <span class="icon-file"></span>
+                                        </div>
+                                    }
+                                }
+                                else
+                                {
+                                    <div class="kw-label report-circle disabled"
+                                         title="Außerhalb des Ausbildungszeitraums">
+
+                                        <span>🔒</span>
+
+                                    </div>
+                                }
+
+                            </td>
+                        }
+
+                    </tr>
+                }
+
+            </tbody>
+
+        </table>
+
+    </div>
+
+    @if (showModal && selectedReport != null)
+    {
+        <div class="modal-overlay" @onclick="CloseModal">
+
+            <div class="modal-box" @onclick:stopPropagation>
+
+                <div style="display:flex; justify-content:space-between">
+
+                    <h3>
+                        Bericht KW @selectedReport.CalendarWeek
+                    </h3>
+
+                    <button class="btn-close"
+                            @onclick="CloseModal">
+                    </button>
+
+                </div>
+
+                <div class="modal-content">
+                    @((MarkupString)selectedReport.Content)
+                </div>
+
+                <h4>Kommentare</h4>
+
+                @if (selectedReport.Comments.Any())
+                {
+                    @foreach (var c in selectedReport.Comments)
+                    {
+                        <div class="comment-box">
+
+                            <b>
+                                @c.CreatedAt?.ToString("dd.MM.yyyy")
+                            </b>
+
+                            <br />
+
+                            @c.CommentText
+
+                        </div>
+                    }
+                }
+
+                <textarea placeholder="Kommentar schreiben..."
+                          @bind="commentText">
+                        </textarea>
+
+                <div class="modal-actions">
+
+                    @if (selectedReport.Status == ReportStatus.Submitted
+                                || selectedReport.Status == ReportStatus.Rejected)
+                    {
+                        <button class="btn-primary"
+                                @onclick="Approve">
+
+                            Freigeben
+
+                        </button>
+                    }
+
+                    @if (selectedReport.Status == ReportStatus.Submitted
+                                || selectedReport.Status == ReportStatus.Approved)
+                    {
+                        <button class="btn-reject"
+                                @onclick="Reject">
+
+                            Zurückweisen
+
+                        </button>
+                    }
+
+                </div>
+
+                @statusMessage
+
+            </div>
+
+        </div>
+    }
+
+    <div class="footer-info"
+         style="margin-top:10px; font-size:0.9rem; color:#666;">
+
+        Azubis geladen: @azubis.Count |
+        Aktuelle Ansicht: @selectedYear
+
+    </div>
+}
+
+@code {
+
+    private string searchText = "";
+    private bool showOnlyOpen = false;
+
+    private List<User> azubis = new();
+
+    private int selectedYear = DateTime.Now.Year;
+
+    private List<int> availableYears =
+        new() { 2024, 2025, 2026, 2027, 2028 };
+
+    private string statusMessage = "";
+    private string commentText = "";
+
+    private Report? selectedReport;
+    private bool showModal = false;
+
+    private User? currentAusbilder;
+    private System.Security.Claims.ClaimsPrincipal? signedInUser;
+
+    private IEnumerable<User> FilteredAzubis => azubis
+        .Where(a =>
+            string.IsNullOrWhiteSpace(searchText)
+            || (a.FirstName + " " + a.LastName)
+                .Contains(searchText, StringComparison.OrdinalIgnoreCase))
+        .Where(a =>
+            !showOnlyOpen || GetMissingReportsCount(a) > 0);
+
+    protected override async Task OnInitializedAsync()
+    {
+        var authState =
+            await AuthenticationStateProvider.GetAuthenticationStateAsync();
+
+        var user = authState.User;
+        signedInUser = user;
+
+        currentAusbilder =
+            await UserService.GetCurrentUserAsync(user);
+
+        if (currentAusbilder == null)
+            return;
+
+        if (!string.Equals(
+                currentAusbilder.Role.RoleName,
+                "Ausbilder",
+                StringComparison.OrdinalIgnoreCase))
+        {
+            NavManager.NavigateTo("/access-denied");
+            return;
+        }
+
+        azubis =
+            await UserService.GetAzubisForAusbilderAsync(
+                currentAusbilder.UserId);
+    }
+
+    private async Task ReloadData()
+    {
+        if (currentAusbilder == null)
+            return;
+
+        azubis =
+            await UserService.GetAzubisForAusbilderAsync(
+                currentAusbilder.UserId);
+    }
+
+    private bool IsInTrainingPeriod(User azubi, int week, int year)
+    {
+        if (azubi?.AusbildungBeginn == null
+            || azubi?.AusbildungEnde == null)
+            return false;
+
+        DateTime weekStart = GetFirstDayOfWeek(year, week);
+
+        return weekStart >= azubi.AusbildungBeginn.Value
+            && weekStart <= azubi.AusbildungEnde.Value;
+    }
+
+    private DateTime GetFirstDayOfWeek(int year, int week)
+    {
+        DateTime jan1 = new(year, 1, 1);
+
+        int daysOffset =
+            DayOfWeek.Thursday - jan1.DayOfWeek;
+
+        DateTime firstThursday =
+            jan1.AddDays(daysOffset);
+
+        var cal =
+            System.Globalization.CultureInfo.CurrentCulture.Calendar;
+
+        int firstWeek =
+            cal.GetWeekOfYear(
+                firstThursday,
+                System.Globalization.CultureInfo.CurrentCulture
+                    .DateTimeFormat.CalendarWeekRule,
+                DayOfWeek.Monday);
+
+        if (firstWeek <= 1)
+            week--;
+
+        return firstThursday.AddDays(week * 7 - 3);
+    }
+
+    private Report? GetReportForWeek(User azubi, int week)
+    {
+        return azubi.Reports.FirstOrDefault(r =>
+            r.CalendarWeek == week
+            && r.Year == selectedYear);
+    }
+
+    private async Task OpenReport(int reportId)
+    {
+        selectedReport =
+            await ReportService.GetReportWithCommentsAsync(reportId);
+
+        if (selectedReport == null)
+            return;
+
+        if (selectedReport.Status == ReportStatus.Submitted
+            || selectedReport.Status == ReportStatus.Approved
+            || selectedReport.Status == ReportStatus.Rejected)
+        {
+            commentText = "";
+            showModal = true;
+        }
+    }
+
+    private int GetTotalTargetWeeks(User azubi)
+    {
+        if (!azubi.AusbildungBeginn.HasValue
+            || !azubi.AusbildungEnde.HasValue)
+            return 156;
+
+        var diff =
+            azubi.AusbildungEnde.Value
+            - azubi.AusbildungBeginn.Value;
+
+        return (int)Math.Floor(diff.TotalDays / 7);
+    }
+
+    private int GetMissingReportsCount(User azubi)
+    {
+        int targetWeeks = GetTotalTargetWeeks(azubi);
+
+        int finishedByAzubi =
+            azubi.Reports.Count(r =>
+                r.Status == ReportStatus.Submitted
+                || r.Status == ReportStatus.Approved);
+
+        int missing = targetWeeks - finishedByAzubi;
+
+        return missing > 0 ? missing : 0;
+    }
+
+    private async Task Approve()
+    {
+        if (selectedReport == null
+            || currentAusbilder == null
+            || signedInUser == null)
+            return;
+
+        try
+        {
+            await ReportService.ApproveReportAsync(
+                selectedReport.ReportId,
+                currentAusbilder.UserId,
+                commentText,
+                signedInUser);
+        }
+        catch (InvalidOperationException ex)
+        {
+            statusMessage = ex.Message;
+            return;
+        }
+
+        showModal = false;
+
+        await ReloadData();
+
+        statusMessage = "✅ Freigegeben!";
+    }
+
+    private async Task Reject()
+    {
+        if (selectedReport == null || currentAusbilder == null)
+            return;
+
+        if (string.IsNullOrWhiteSpace(commentText))
+        {
+            statusMessage = "⚠️ Bitte Kommentar eingeben";
+            return;
+        }
+
+        await ReportService.RejectReportAsync(
+            selectedReport.ReportId,
+            currentAusbilder.UserId,
+            commentText);
+
+        statusMessage = "❌ Zurückgewiesen!";
+
+        showModal = false;
+
+        await ReloadData();
+    }
+
+    private void CloseModal()
+    {
+        showModal = false;
+    }
+}
