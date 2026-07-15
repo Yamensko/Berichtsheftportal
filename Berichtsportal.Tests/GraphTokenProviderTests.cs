@@ -5,29 +5,33 @@ using System.Text.Json;
 
 namespace Berichtsportal.Tests;
 
+/// Tests fuer den GraphTokenProvider (Token-Speicherung und automatische Erneuerung)
 public class GraphTokenProviderTests
 {
+    /// Wenn ein gueltiges Token gespeichert ist, wird es direkt zurueckgegeben (kein Refresh)
     [Fact]
     public async Task GetAccessTokenAsync_ReturnsStoredToken_WhenNotExpired()
     {
         var tokenProvider = TestData.CreateTokenProvider();
         var userId = Guid.NewGuid().ToString();
-        var jwt = TestData.CreateFakeJwt();
+        var jwt = TestData.CreateFakeJwt();  // Gueltig fuer 1 Stunde
 
         tokenProvider.StoreTokens(userId, jwt, "refresh-abc");
 
         var result = await tokenProvider.GetAccessTokenAsync(userId);
 
+        // Gleiches Token zurueck = kein Refresh noetig
         Assert.Equal(jwt, result);
     }
 
+    /// Wenn das Token abgelaufen ist, wird automatisch ein neues per Refresh Token geholt
     [Fact]
     public async Task GetAccessTokenAsync_RefreshesToken_WhenExpired()
     {
-        // Expired JWT (exp = 1 hour ago)
+        // Abgelaufenes JWT (exp = vor 1 Stunde)
         var expiredJwt = CreateJwtWithExp(DateTimeOffset.UtcNow.AddHours(-1));
 
-        // Fake token endpoint returns new tokens
+        // Fake-Antwort vom Azure Token-Endpoint mit neuem Token
         var newAccessToken = TestData.CreateFakeJwt();
         var responseBody = JsonSerializer.Serialize(new
         {
@@ -44,10 +48,12 @@ public class GraphTokenProviderTests
 
         var result = await tokenProvider.GetAccessTokenAsync(userId);
 
+        // Neues Token zurueckgegeben, alter Refresh Token wurde gesendet
         Assert.Equal(newAccessToken, result);
         Assert.Contains("old-refresh-token", handler.LastBody);
     }
 
+    /// HasTokens gibt false zurueck wenn kein Token fuer den User gespeichert ist
     [Fact]
     public void HasTokens_ReturnsFalse_WhenNoTokensStored()
     {
@@ -56,6 +62,7 @@ public class GraphTokenProviderTests
         Assert.False(tokenProvider.HasTokens("unknown-user"));
     }
 
+    /// HasTokens gibt true zurueck nachdem Tokens gespeichert wurden
     [Fact]
     public void HasTokens_ReturnsTrue_AfterStoring()
     {
@@ -67,6 +74,7 @@ public class GraphTokenProviderTests
         Assert.True(tokenProvider.HasTokens(userId));
     }
 
+    /// Ohne gespeicherte Tokens muss eine hilfreiche Fehlermeldung kommen
     [Fact]
     public async Task GetAccessTokenAsync_ThrowsWhenNoTokens()
     {
@@ -78,6 +86,7 @@ public class GraphTokenProviderTests
         Assert.Contains("Graph-Token", ex.Message);
     }
 
+    /// Hilfsmethode: Erstellt ein JWT mit beliebigem Ablaufzeitpunkt
     private static string CreateJwtWithExp(DateTimeOffset expiry)
     {
         var header = Convert.ToBase64String(Encoding.UTF8.GetBytes("{\"alg\":\"none\"}"));
@@ -87,9 +96,8 @@ public class GraphTokenProviderTests
     }
 }
 
-/// <summary>
-/// Returns a fixed JSON response for token refresh requests.
-/// </summary>
+/// Fake-Handler fuer den Azure Token-Endpoint: Gibt eine feste JSON-Antwort zurueck
+/// Wird benutzt um die automatische Token-Erneuerung zu testen
 internal sealed class FakeTokenEndpointHandler : HttpMessageHandler
 {
     private readonly string responseBody;

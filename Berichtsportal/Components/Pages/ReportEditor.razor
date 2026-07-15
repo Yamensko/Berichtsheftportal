@@ -13,6 +13,7 @@
 
     <h1 class="overview-title">Wochenbericht</h1>
 
+    @* KW-Navigation und Zurueck-Button *@
     <div class="top-bar">
         <div class="header-nav">
             <button class="btn-nav" @onclick="GoToPrevWeek">◀</button>
@@ -25,10 +26,12 @@
         </button>
     </div>
 
+    @* Anzeige des Datumszeitraums (Mo-Fr) fuer die aktuelle KW *@
     <span class="date-range">
         Arbeitswoche (Mo. - Fr.): @CurrentWeekRange
     </span>
 
+    @* Ladezustand: Bericht wird noch aus der DB geholt *@
     @if (currentReport == null)
     {
         <div class="editor-container">
@@ -38,6 +41,7 @@
     else
     {
         <br />
+        @* Bei eingereichten/genehmigten Berichten: Entsperr-Button anzeigen *@
         @if (IsLocked)
         {
             <button class="btn-primary" @onclick="EnableEditing">
@@ -47,22 +51,25 @@
 
         <div class="editor-container">
 
+            @* Speicherstatus-Anzeige und manueller Speicher-Button *@
             <div class="save-status">
                 @saveStatus
-                @* Manueller Speicher-Button *@
                 <button class="btn-pill z-speichern" @onclick="ManuallySave">
                     💾 Zwischenspeichern
                 </button>
             </div>
 
-            @* @key sorgt dafür, dass der Editor bei Wochenwechsel neu initialisiert wird *@
+            @* @key erzwingt Neuinitialisierung des Editors bei Wochenwechsel,
+               damit Quill.js den neuen Inhalt korrekt laedt *@
             <div @key="@($"editor-wrapper-{Year}-{Week}")">
+                @* Quill.js Rich-Text-Editor ueber Blazox-Komponente *@
                 <RichTextEditor @ref="editor"
                                 ReadOnly="@IsLocked"
                                 Theme="snow"
                                 Placeholder="Was hast du diese Woche gemacht?"
                                 OnTextContentChange="HandleEditorChange">
 
+                    @* Quill-Toolbar: Ueberschriften, Formatierung, Farben, Listen, Links, Groesse *@
                     <ToolbarContent>
                         <select class="ql-header">
                             <option value="1"></option>
@@ -104,6 +111,15 @@
                 </RichTextEditor>
             </div>
 
+            @* Fehlermeldung anzeigen falls Speichern oder Freigabe fehlgeschlagen *@
+            @if (!string.IsNullOrEmpty(errorMessage))
+            {
+                <div class="alert alert-danger">
+                    @errorMessage
+                </div>
+            }
+
+            @* Status-Hinweise: Warnung bei Ablehnung, Bestaetigung bei Genehmigung *@
             @if (currentReport.Status == ReportStatus.Rejected)
             {
                 <div class="alert alert-warning">
@@ -117,6 +133,7 @@
                 </div>
             }
 
+            @* Kommentar-Bereich: Feedback des Ausbilders zum Bericht *@
             <div class="comment-section">
                 <h4>Feedback vom Ausbilder:</h4>
                 @if (currentReport.Comments != null && currentReport.Comments.Any())
@@ -135,6 +152,7 @@
                 }
             </div>
 
+            @* Freigabe-Button nur bei Draft oder Rejected (nicht bei Submitted/Approved) *@
             @if (currentReport.Status == ReportStatus.Draft || currentReport.Status == ReportStatus.Rejected)
             {
                 <div class="action-bar">
@@ -148,22 +166,26 @@
 </div>
 
 @code {
+    // URL-Parameter: /report-editor/{Year}/{Week}
     [Parameter] public int Year { get; set; }
     [Parameter] public int Week { get; set; }
 
-    private RichTextEditor? editor;
-    private System.Timers.Timer? saveTimer;
-    private string saveStatus = "Bereit";
-    private Report? currentReport;
-    private bool isEditing = false;
-    private bool isDisposed = false;
+    private RichTextEditor? editor;              // Referenz auf den Quill.js Editor
+    private System.Timers.Timer? saveTimer;      // Timer fuer Debounce/AutoSave
+    private string saveStatus = "Bereit";        // Statustext (Bereit/Speichere/Gespeichert)
+    private string? errorMessage;                // Fehlermeldung fuer den Benutzer
+    private Report? currentReport;               // Aktuell geladener Bericht aus der DB
+    private bool isEditing = false;              // True wenn gesperrter Bericht entsperrt wurde
+    private bool isDisposed = false;             // Schutz vor Zugriffen nach Component-Zerstoerung
     private User? currentUser;
 
+    /// Editor ist gesperrt wenn Status Submitted oder Approved UND nicht manuell entsperrt
     private bool IsLocked =>
         currentReport != null &&
         (currentReport.Status == ReportStatus.Submitted || currentReport.Status == ReportStatus.Approved) &&
         !isEditing;
 
+    /// Berechnet den Anzeigetext "Mo-Fr" fuer die aktuelle Kalenderwoche
     private string CurrentWeekRange
     {
         get
@@ -174,11 +196,11 @@
         }
     }
 
+    /// Wird bei jedem URL-Wechsel aufgerufen (auch bei KW-Navigation)
+    /// Laedt Benutzer, prueft Berechtigung, holt Bericht aus DB (Lazy Creation)
     protected override async Task OnParametersSetAsync()
     {
-
         var authState = await AuthStateProvider.GetAuthenticationStateAsync();
-
         var principal = authState.User;
 
         currentUser = await UserService.GetCurrentUserAsync(principal);
@@ -186,6 +208,7 @@
         if (currentUser == null)
             return;
 
+        // Nur Azubis duerfen den Editor nutzen
         if (!string.Equals(
                 currentUser.Role.RoleName,
                 "Auszubildender",
@@ -195,13 +218,16 @@
             return;
         }
 
+        // Bericht mit Kommentaren laden (fuer Ausbilder-Feedback)
         currentReport = await ReportService.GetReportWithCommentsByWeekAsync(currentUser.UserId, Year, Week);
 
+        // Lazy Creation: Bericht existiert noch nicht -> neu anlegen
         if (currentReport == null)
         {
             currentReport = await ReportService.GetOrCreateReportAsync( currentUser.UserId, Year, Week);
         }
 
+        // Falls Editor schon initialisiert: HTML-Inhalt laden
         if (editor != null && currentReport != null)
         {
             await editor.LoadHTMLContent(currentReport.Content ?? "");
@@ -210,11 +236,13 @@
         saveStatus = "Gespeichert";
     }
 
+    /// Nach dem ersten Render: kurz warten bis Quill.js per JS initialisiert ist,
+    /// dann gespeicherten HTML-Inhalt in den Editor laden
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
         if (firstRender)
         {
-            await Task.Delay(300); // Zeit für JS-Initialisierung
+            await Task.Delay(300);
             if (currentReport != null && editor != null)
             {
                 await editor.LoadHTMLContent(currentReport.Content ?? "");
@@ -223,23 +251,31 @@
         }
     }
 
+    /// Wird bei jeder Texteingabe im Editor ausgeloest
+    /// Startet den Debounce-Timer neu (AutoSave nach 2 Sekunden Pause)
     private void HandleEditorChange(string text)
     {
         saveStatus = "Änderungen erkannt...";
         ResetTimer();
     }
 
+    /// Debounce-Logik: Alten Timer stoppen und neuen starten
+    /// Erst wenn 2 Sekunden lang keine Eingabe kommt, wird gespeichert
     private void ResetTimer()
     {
+        // Alten Timer aufraumen (Null-Conditional: nur wenn Timer existiert)
         saveTimer?.Stop();
         saveTimer?.Dispose();
 
-        saveTimer = new System.Timers.Timer(2000); // 3 Sekunden Auto-Save
+        // Neuen Timer erstellen: 2000ms Verzoegerung, einmaliger Ausloeser
+        saveTimer = new System.Timers.Timer(2000);
+        // Anonyme Funktion: Bei Elapsed-Event wird AutoSave aufgerufen
         saveTimer.Elapsed += async (_, _) => await AutoSave();
-        saveTimer.AutoReset = false;
+        saveTimer.AutoReset = false;  // Nur einmal ausloesen, nicht wiederholt
         saveTimer.Start();
     }
 
+    /// Manuelles Speichern per Button-Klick (stoppt auch den AutoSave-Timer)
     private async Task ManuallySave()
     {
         if (editor == null)
@@ -253,6 +289,8 @@
         StateHasChanged();
     }
 
+    /// AutoSave: Wird vom Timer aufgerufen (laeuft auf einem Hintergrund-Thread)
+    /// InvokeAsync wechselt zurueck auf den Blazor-UI-Thread (SignalR-Kontext)
     private async Task AutoSave()
     {
         if (isDisposed || currentReport == null || editor == null)
@@ -260,24 +298,26 @@
 
         try
         {
+            // InvokeAsync: Timer laeuft auf eigenem Thread, aber Blazor-UI
+            // darf nur vom SignalR-Thread aus aktualisiert werden
             await InvokeAsync(async () =>
             {
                 if (isDisposed)
                     return;
 
                 await SaveData();
-
                 saveStatus = "Automatisch gespeichert";
-
                 StateHasChanged();
             });
         }
         catch
         {
-            // Ignorieren wenn Component bereits zerstört wurde
+            // Ignorieren wenn Component bereits zerstoert wurde
         }
     }
 
+    /// Holt den HTML-Inhalt aus Quill.js und speichert ihn in der DB
+    /// Nur wenn sich der Inhalt geaendert hat (Vergleich mit currentReport.Content)
     private async Task SaveData()
     {
         if (isDisposed || currentReport == null || editor == null)
@@ -285,21 +325,25 @@
 
         try
         {
+            // HTML aus dem Quill.js Editor holen (via JS Interop)
             string html = await editor.GetHTML();
 
+            // Nur speichern wenn sich der Inhalt tatsaechlich geaendert hat
             if (currentReport.Content != html)
             {
                 currentReport.Content = html;
-
                 await ReportService.SaveReportAsync(currentReport);
             }
+
+            errorMessage = null;
         }
         catch
         {
-            // JS Interop wurde zerstört
+            errorMessage = "Speichern fehlgeschlagen. Dein Text ist noch im Editor sichtbar — bitte kopiere ihn (Strg+A, Strg+C) und klicke danach auf 'Zwischenspeichern'.";
         }
     }
 
+    // Bericht freigeben: Speichern, Status auf Submitted setzen, E-Mail an Ausbilder
     private async Task Freigeben()
     {
         if (currentReport == null || currentUser == null || IsLocked) return;
@@ -310,18 +354,24 @@
         try
         {
             var authState = await AuthStateProvider.GetAuthenticationStateAsync();
+            // SubmitReportAsync setzt Status und sendet Benachrichtigung per Graph API
             await ReportService.SubmitReportAsync(
                 currentReport.ReportId, currentUser.UserId, authState.User);
         }
         catch (InvalidOperationException)
         {
+            // Fallback: Status trotzdem auf Submitted setzen, aber Benutzer informieren
             currentReport.Status = ReportStatus.Submitted;
             await ReportService.SaveReportAsync(currentReport);
+            errorMessage = "Bericht wurde freigegeben, aber die E-Mail-Benachrichtigung konnte nicht gesendet werden. Bitte informiere deinen Ausbilder manuell.";
+            StateHasChanged();
+            await Task.Delay(4000);
         }
 
         NavManager.NavigateTo("/reports");
     }
 
+    // Gesperrten Bericht zum Bearbeiten entsperren (setzt Status zurueck auf Draft)
     private async Task EnableEditing()
     {
         if (currentReport == null) return;
@@ -331,30 +381,35 @@
         saveStatus = "Bearbeitung aktiv";
     }
 
+    // IDisposable: Timer-Ressourcen freigeben wenn die Seite verlassen wird
+    // isDisposed verhindert, dass AutoSave nach dem Verlassen noch läuft
     public void Dispose()
     {
         isDisposed = true;
-
         saveTimer?.Stop();
         saveTimer?.Dispose();
     }
 
-    // Navigation-Hilfsmethoden
+    // --- KW-Navigation ---
+
     private void GoToPrevWeek() => Navigate(-7);
     private void GoToNextWeek() => Navigate(7);
 
+    // Berechnet die neue KW basierend auf Tagen-Offset und navigiert dorthin
     private void Navigate(int days)
     {
         var date = GetFirstDayOfWeek(Year, Week).AddDays(days);
         var cal = CultureInfo.CurrentCulture.Calendar;
         int newWeek = cal.GetWeekOfYear(date, CalendarWeekRule.FirstFourDayWeek, DayOfWeek.Monday);
         int newYear = date.Year;
+        // Sonderfall: KW 52/53 im Januar gehoert noch zum Vorjahr
         if (newWeek > 50 && date.Month == 1) newYear--;
         NavManager.NavigateTo($"/report-editor/{newYear}/{newWeek}");
     }
 
     private void Cancel() => NavManager.NavigateTo("/reports");
 
+    // Berechnet den Montag einer KW nach ISO 8601 (europaeische Kalenderregel)
     private DateTime GetFirstDayOfWeek(int year, int week)
     {
         DateTime jan1 = new(year, 1, 1);

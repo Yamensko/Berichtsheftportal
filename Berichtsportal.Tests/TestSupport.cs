@@ -1,4 +1,4 @@
-﻿using Berichtsportal.Data;
+using Berichtsportal.Data;
 using Berichtsportal.Models;
 using Berichtsportal.Services;
 using Microsoft.EntityFrameworkCore;
@@ -9,8 +9,10 @@ using System.Security.Claims;
 
 namespace Berichtsportal.Tests;
 
+// Hilfsklasse mit Testdaten und Factory-Methoden fuer alle Tests
 internal static class TestData
 {
+    /// Erstellt einen neuen InMemory-DbContext (jeder Test bekommt eine eigene DB)
     public static BerichtsportalDbContext CreateContext(string? name = null)
     {
         var options = new DbContextOptionsBuilder<BerichtsportalDbContext>()
@@ -20,10 +22,12 @@ internal static class TestData
         return new BerichtsportalDbContext(options);
     }
 
+    // Vordefinierte Rollen fuer Tests
     public static Role AzubiRole() => new() { RoleId = 1, RoleName = "Auszubildender" };
 
     public static Role AusbilderRole() => new() { RoleId = 2, RoleName = "Ausbilder" };
 
+    /// Erstellt einen Test-Ausbilder mit Standardwerten
     public static User CreateAusbilder(Guid? id = null) => new()
     {
         UserId = id ?? Guid.NewGuid(),
@@ -34,6 +38,7 @@ internal static class TestData
         Role = AusbilderRole()
     };
 
+    /// Erstellt einen Test-Azubi mit Ausbildungszeitraum und optionalem Mentor
     public static User CreateAzubi(Guid? id = null, Guid? mentorId = null) => new()
     {
         UserId = id ?? Guid.NewGuid(),
@@ -47,6 +52,8 @@ internal static class TestData
         AusbildungEnde = new DateTime(2028, 12, 31)
     };
 
+    /// Erstellt ein ClaimsPrincipal (simuliert einen angemeldeten Benutzer)
+    /// Optional mit Graph-Token und Azure Object ID fuer Mail-Tests
     public static ClaimsPrincipal CreatePrincipal(string email = "azubi@pica.de", string? graphToken = null, string? objectId = null)
     {
         var claims = new List<Claim>
@@ -64,12 +71,14 @@ internal static class TestData
         return new ClaimsPrincipal(new ClaimsIdentity(claims, "Test"));
     }
 
+    /// Erstellt den SubmitNotificationService (BackgroundService fuer verzögerte Benachrichtigungen)
     public static SubmitNotificationService CreateNotificationService()
     {
         var scopeFactory = new FakeScopeFactory();
         return new SubmitNotificationService(scopeFactory);
     }
 
+    /// Erstellt einen GraphTokenProvider mit Fake-Konfiguration fuer Tests
     public static GraphTokenProvider CreateTokenProvider(IHttpClientFactory? httpClientFactory = null)
     {
         var config = new ConfigurationBuilder()
@@ -85,10 +94,8 @@ internal static class TestData
             config);
     }
 
-    /// <summary>
-    /// Creates a fake JWT whose exp claim is 1 hour in the future,
-    /// so GraphTokenProvider.IsTokenExpiringSoon returns false.
-    /// </summary>
+    /// Erstellt ein Fake-JWT mit exp-Claim 1 Stunde in der Zukunft,
+    /// damit IsTokenExpiringSoon false zurueckgibt (Token gilt noch)
     public static string CreateFakeJwt()
     {
         var header = Convert.ToBase64String(System.Text.Encoding.UTF8.GetBytes("{\"alg\":\"none\"}"));
@@ -98,6 +105,8 @@ internal static class TestData
     }
 }
 
+/// Fake-DbContextFactory: Gibt immer einen InMemory-Context zurueck
+/// Noetig weil UserServices IDbContextFactory statt DbContext direkt nutzt
 internal sealed class TestDbContextFactory : IDbContextFactory<BerichtsportalDbContext>
 {
     private readonly DbContextOptions<BerichtsportalDbContext> options;
@@ -117,11 +126,14 @@ internal sealed class TestDbContextFactory : IDbContextFactory<BerichtsportalDbC
     }
 }
 
+/// Fake-ScopeFactory: Wird vom NotificationService benoetigt aber in Tests nicht aufgerufen
 internal sealed class FakeScopeFactory : IServiceScopeFactory
 {
     public IServiceScope CreateScope() => throw new NotSupportedException("Not used in tests");
 }
 
+/// Fake-HttpClientFactory: Gibt immer denselben HttpClient zurueck
+/// Damit koennen wir den RecordingHttpMessageHandler injizieren
 internal sealed class FakeHttpClientFactory : IHttpClientFactory
 {
     private readonly HttpClient client;
@@ -134,6 +146,8 @@ internal sealed class FakeHttpClientFactory : IHttpClientFactory
     public HttpClient CreateClient(string name) => client;
 }
 
+/// Aufzeichnender HTTP-Handler: Speichert den letzten Request und Body
+/// Damit koennen wir pruefen ob der richtige API-Aufruf gesendet wurde
 internal sealed class RecordingHttpMessageHandler : HttpMessageHandler
 {
     private readonly HttpResponseMessage response;
@@ -154,6 +168,7 @@ internal sealed class RecordingHttpMessageHandler : HttpMessageHandler
         HttpRequestMessage request,
         CancellationToken cancellationToken)
     {
+        // Request und Body aufzeichnen fuer spaetere Assertions
         LastRequest = request;
 
         if (request.Content != null)

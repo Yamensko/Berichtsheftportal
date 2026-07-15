@@ -14,7 +14,7 @@
     <div class="top-bar">
         <h1 class="overview-title">Übersicht</h1>
 
-        @* Navigation mit dem neuen Kapsel-Design *@
+        @* Halbjahr-Navigation: Vor/Zurueck-Buttons mit aktuellem Halbjahr *@
         <div class="header-nav">
             <button class="btn-nav" @onclick="PrevHalfYear">◀</button>
             <span class="period-label">
@@ -23,31 +23,36 @@
             <button class="btn-nav" @onclick="NextHalfYear">▶</button>
         </div>
 
-        @* Button im einheitlichen Pill-Design (falls du dort noch eine Aktion brauchst, 
-           ansonsten dient er hier der optischen Symmetrie zur Editor-Bar) *@
-        <div style="width: 120px;"></div> @* Platzhalter für Symmetrie oder ein Profil-Button *@
+        @* Platzhalter fuer symmetrisches Layout (gleiche Breite wie linker Titel) *@
+        <div style="width: 120px;"></div>
     </div>
 
     <span class="date-range">Zeitraum: @CurrentPeriodDates</span>
 
+    @* Kalender-Grid: 26 Kreise pro Halbjahr, einer pro Kalenderwoche *@
     <div class="grid-container rtl-grid">
         @foreach (var item in displayReports)
         {
+            // Prüfen ob die KW im Ausbildungszeitraum liegt
             bool isActive = IsInTrainingPeriod(item.CalendarWeek, item.Year);
 
-            @* Die Kreise nutzen nun die konsistenten Status-Farben aus dem CSS *@
-
-            // Hier casten wir den Status für die CSS-Klasse und die Icons
+            // Status-Enum fuer CSS-Klasse und Icon-Anzeige
             var statusEnum = (ReportStatus)item.Status;
+
+            @* Jeder Kreis bekommt eine CSS-Klasse nach Status (draft/submitted/approved/rejected)
+               und wird bei Klick zum Editor navigiert *@
             <div class="report-circle @statusEnum.ToCssClass() @(isActive ? "" : "disabled")"
                  @onclick="() => { if (isActive) OpenEditor(item.CalendarWeek); }">
 
                 <span class="kw-label">@item.CalendarWeek</span>
 
+                @* Schloss-Icon fuer KWs ausserhalb des Ausbildungszeitraums *@
                 @if (!isActive)
                 {
                     <span>🔒</span>
                 }
+
+                @* Status-Icons: Sanduhr = eingereicht, Haken = genehmigt, Pfeil = abgelehnt *@
                 @switch (statusEnum)
                 {
                     case ReportStatus.Submitted:
@@ -68,16 +73,15 @@
 </div>
 
 @code {
-    // ... (Code-Block bleibt identisch zu deiner Vorlage) ...
     private List<Report> displayReports = new();
-    private bool isSecondHalf = false;
+    private bool isSecondHalf = false;     // false = KW 1-26, true = KW 27-52
     private int currentYear;
     private User? currentUser;
 
+    /// Beim ersten Laden: Benutzer ermitteln, Rolle pruefen, Dashboard laden
     protected override async Task OnInitializedAsync()
     {
         var authState = await AuthStateProvider.GetAuthenticationStateAsync();
-
         var user = authState.User;
 
         currentUser = await UserService.GetCurrentUserAsync(user);
@@ -85,6 +89,7 @@
         if (currentUser == null)
             return;
 
+        // Nur Azubis dürfen diese Seite sehen
         if (!string.Equals(
                 currentUser.Role.RoleName,
                 "Auszubildender",
@@ -94,14 +99,17 @@
             return;
         }
 
+        // Aktuelles Halbjahr automatisch erkennen
         currentYear = DateTime.Now.Year;
         isSecondHalf = DateTime.Now.Month > 6;
 
         await LoadDashboard();
     }
 
+    /// Erstellt 26 leere Platzhalter-Kreise und ueberschreibt sie mit DB-Daten
     private async Task LoadDashboard()
     {
+        // 26 leere Report-Platzhalter erstellen (KW 1-26 oder KW 27-52)
         int startWeek = isSecondHalf ? 27 : 1;
         displayReports = new List<Report>();
         for (int i = 0; i < 26; i++)
@@ -112,6 +120,7 @@
         if (currentUser == null)
             return;
 
+        // Vorhandene Berichte aus der DB laden und Status uebernehmen
         var dbReports = await ReportService.GetReportsForPeriodAsync(
                 currentUser.UserId,
                 currentYear,
@@ -128,6 +137,7 @@
         }
     }
 
+    // Naechstes Halbjahr anzeigen (1. HJ -> 2. HJ -> naechstes Jahr 1. HJ)
     private async Task NextHalfYear()
     {
         if (!isSecondHalf) isSecondHalf = true;
@@ -135,6 +145,7 @@
         await LoadDashboard();
     }
 
+    // Vorheriges Halbjahr anzeigen
     private async Task PrevHalfYear()
     {
         if (isSecondHalf) isSecondHalf = false;
@@ -142,6 +153,7 @@
         await LoadDashboard();
     }
 
+    // Prüft ob eine KW innerhalb des Ausbildungszeitraums liegt (Beginn bis Ende)
     private bool IsInTrainingPeriod(int week, int year)
     {
         if (currentUser?.AusbildungBeginn == null || currentUser?.AusbildungEnde == null) return false;
@@ -149,6 +161,7 @@
         return weekStart >= currentUser.AusbildungBeginn.Value && weekStart <= currentUser.AusbildungEnde.Value;
     }
 
+    // Berechnet den Montag einer KW nach ISO 8601 (europaeische Kalenderregel)
     private DateTime GetFirstDayOfWeek(int year, int week)
     {
         DateTime jan1 = new(year, 1, 1);
@@ -160,6 +173,7 @@
         return firstThursday.AddDays(week * 7 - 3);
     }
 
+    // Berechnet den Anzeigetext für den Zeitraum (z.B. "01.01.2026 bis 28.06.2026")
     private string CurrentPeriodDates
     {
         get
@@ -171,5 +185,6 @@
         }
     }
 
+    // Navigiert zum Report-Editor für die angeklickte Kalenderwoche
     private void OpenEditor(int week) => NavManager.NavigateTo($"/report-editor/{currentYear}/{week}");
 }
