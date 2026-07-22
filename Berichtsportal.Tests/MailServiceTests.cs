@@ -24,7 +24,7 @@ public class MailServiceTests
         var principal = TestData.CreatePrincipal(objectId: objectId);
 
         await service.SendMailAsync(
-            "empfaenger@pica.de",
+            "empfaenger@example.com",
             "Bericht freigegeben",
             "<p>Hallo</p>",
             principal);
@@ -34,7 +34,7 @@ public class MailServiceTests
         Assert.Equal(HttpMethod.Post, handler.LastRequest.Method);
         Assert.Equal("https://graph.microsoft.com/v1.0/me/sendMail", handler.LastRequest.RequestUri!.ToString());
         Assert.Equal(new AuthenticationHeaderValue("Bearer", fakeJwt), handler.LastRequest.Headers.Authorization);
-        Assert.Contains("empfaenger@pica.de", handler.LastBody);
+        Assert.Contains("empfaenger@example.com", handler.LastBody);
         Assert.Contains("Bericht freigegeben", handler.LastBody);
     }
 
@@ -53,7 +53,7 @@ public class MailServiceTests
 
         // Muss InvalidOperationException mit "Graph-Token" im Text werfen
         var exception = await Assert.ThrowsAsync<InvalidOperationException>(() =>
-            service.SendMailAsync("empfaenger@pica.de", "Betreff", "Body", principal));
+            service.SendMailAsync("empfaenger@example.com", "Betreff", "Body", principal));
 
         Assert.Contains("Graph-Token", exception.Message);
         // Kein HTTP-Request darf gesendet worden sein

@@ -301,8 +301,12 @@ public class PdfExportService
         text = Regex.Replace(text, @"<(em|i)\b[^>]*>", ItalicOn.ToString(), RegexOptions.IgnoreCase);
         text = Regex.Replace(text, @"</(em|i)>", ItalicOff.ToString(), RegexOptions.IgnoreCase);
 
-        // Line breaks
-        text = Regex.Replace(text, @"<(br|/p|/div|/li)\s*/?>", Environment.NewLine, RegexOptions.IgnoreCase);
+        // Block-level tags → line breaks (before stripping all HTML)
+        text = Regex.Replace(text, @"</(p|h[1-6])>", "\n\n", RegexOptions.IgnoreCase);
+        text = Regex.Replace(text, @"</li>", "\n", RegexOptions.IgnoreCase);
+        text = Regex.Replace(text, @"</(ul|ol)>", "\n", RegexOptions.IgnoreCase);
+        text = Regex.Replace(text, @"</div>", "\n", RegexOptions.IgnoreCase);
+        text = Regex.Replace(text, @"<br\s*/?>", "\n", RegexOptions.IgnoreCase);
 
         // Strip remaining HTML tags
         text = Regex.Replace(text, "<.*?>", string.Empty);
@@ -340,9 +344,30 @@ public class PdfExportService
 
                 return sb.ToString().Trim();
             })
-            .Where(line => StripMarkers(line).Length > 0);
+            .ToList();
 
-        return string.Join(Environment.NewLine, normalizedLines);
+        // Collapse consecutive empty lines into one (preserve paragraph breaks)
+        var result = new List<string>();
+        var lastWasEmpty = true;
+        foreach (var line in normalizedLines)
+        {
+            if (StripMarkers(line).Length == 0)
+            {
+                if (!lastWasEmpty)
+                    result.Add("");
+                lastWasEmpty = true;
+            }
+            else
+            {
+                result.Add(line);
+                lastWasEmpty = false;
+            }
+        }
+
+        while (result.Count > 0 && StripMarkers(result[^1]).Length == 0)
+            result.RemoveAt(result.Count - 1);
+
+        return string.Join(Environment.NewLine, result);
     }
 
     /// <summary>Entfernt alle Format-Steuerzeichen aus einem String (fuer Laengenberechnung).</summary>

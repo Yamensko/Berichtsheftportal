@@ -31,7 +31,7 @@ internal static class TestData
     public static User CreateAusbilder(Guid? id = null) => new()
     {
         UserId = id ?? Guid.NewGuid(),
-        Email = "ausbilder@pica.de",
+        Email = "ausbilder@example.com",
         FirstName = "Ada",
         LastName = "Ausbilder",
         RoleId = 2,
@@ -42,7 +42,7 @@ internal static class TestData
     public static User CreateAzubi(Guid? id = null, Guid? mentorId = null) => new()
     {
         UserId = id ?? Guid.NewGuid(),
-        Email = "azubi@pica.de",
+        Email = "azubi@example.com",
         FirstName = "Max",
         LastName = "Azubi",
         RoleId = 1,
@@ -54,7 +54,7 @@ internal static class TestData
 
     /// Erstellt ein ClaimsPrincipal (simuliert einen angemeldeten Benutzer)
     /// Optional mit Graph-Token und Azure Object ID fuer Mail-Tests
-    public static ClaimsPrincipal CreatePrincipal(string email = "azubi@pica.de", string? graphToken = null, string? objectId = null)
+    public static ClaimsPrincipal CreatePrincipal(string email = "azubi@example.com", string? graphToken = null, string? objectId = null)
     {
         var claims = new List<Claim>
         {

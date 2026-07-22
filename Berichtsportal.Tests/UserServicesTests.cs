@@ -23,7 +23,7 @@ public class UserServicesTests
 
         // Service erstellen und Benutzer per ClaimsPrincipal suchen
         var service = new UserServices(factory);
-        var user = await service.GetCurrentUserAsync(TestData.CreatePrincipal("azubi@pica.de"));
+        var user = await service.GetCurrentUserAsync(TestData.CreatePrincipal("azubi@example.com"));
 
         // Benutzer gefunden und hat die richtige Rolle
         Assert.NotNull(user);
@@ -42,7 +42,7 @@ public class UserServicesTests
         var other = new User                                               // Azubi eines anderen Ausbilders
         {
             UserId = Guid.NewGuid(),
-            Email = "anderer.azubi@pica.de",
+            Email = "anderer.azubi@example.com",
             FirstName = "Andere",
             LastName = "Person",
             RoleId = 1,

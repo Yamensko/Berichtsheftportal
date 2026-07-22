@@ -165,4 +165,49 @@ public class PdfExportServiceTests
         // Gesamtanzahl = 2 (ohne Draft)
         Assert.Contains(ToHex("Anzahl Wochenberichte: 2"), pdfAscii);
     }
+
+    /// Prueft ob Quill-Listen (ul/li) als separate Zeilen im PDF landen
+    [Fact]
+    public async Task CreateReportPdfAsync_PreservesListLineBreaks()
+    {
+        await using var context = TestData.CreateContext();
+        var ausbilder = TestData.CreateAusbilder();
+        var azubi = TestData.CreateAzubi(mentorId: ausbilder.UserId);
+
+        // Realistisches Quill-HTML mit Ueberschrift und Aufzaehlung
+        var quillHtml = "<p>1. Hauptaufgaben</p>"
+            + "<ul><li><strong>Projekt A:</strong> Implementierung</li>"
+            + "<li><strong>Projekt B:</strong> Fehlerbehebung</li>"
+            + "<li><strong>Wartung:</strong> Migration</li></ul>";
+
+        context.Users.AddRange(ausbilder, azubi);
+        context.Reports.Add(new Report
+        {
+            ReportId = 999,
+            AzubiId = azubi.UserId,
+            Azubi = azubi,
+            CalendarWeek = 24,
+            Year = 2026,
+            Content = quillHtml,
+            Status = ReportStatus.Approved,
+            LastModified = new DateTime(2026, 6, 12)
+        });
+        await context.SaveChangesAsync();
+
+        var service = new PdfExportService(context);
+        var result = await service.CreateReportPdfAsync(999, azubi);
+
+        Assert.NotNull(result);
+        var pdfAscii = System.Text.Encoding.ASCII.GetString(result!.Content);
+        string ToHex(string s) => Convert.ToHexString(System.Text.Encoding.Latin1.GetBytes(s));
+
+        // Jeder Listenpunkt muss als eigene Zeile im PDF stehen (nicht zusammenhaengend)
+        Assert.Contains(ToHex("Hauptaufgaben"), pdfAscii);
+        Assert.Contains(ToHex("Implementierung"), pdfAscii);
+        Assert.Contains(ToHex("Fehlerbehebung"), pdfAscii);
+        Assert.Contains(ToHex("Migration"), pdfAscii);
+
+        // "HauptaufgabenProjekt" darf NICHT vorkommen (= keine Trennung)
+        Assert.DoesNotContain(ToHex("HauptaufgabenProjekt"), pdfAscii);
+    }
 }
