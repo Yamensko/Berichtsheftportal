@@ -37,33 +37,39 @@ Zwei Ansichten je nach Rolle:
 
 ### Für Auszubildende
 
-Kalenderwochen des eigenen Ausbildungszeitraums als Kacheln mit Status-Indikator (grün = freigegeben, orange = aktuell in Bearbeitung, pink = abgelehnt, grau = noch gesperrt):
+Kalenderwochen des eigenen Ausbildungszeitraums als Kacheln mit Status-Indikator (grün = freigegeben, orange = aktuell in Bearbeitung, pink = abgelehnt, grau = noch gesperrt (außerhalb der Ausbildunsgzeitraum)):
 
-<!-- HIER dashboard-azubi.png reinziehen -->
+<img width="1247" height="593" alt="dashboard-azubi" src="https://github.com/user-attachments/assets/437af594-e9cf-40b8-9779-7837926c840f" />
+
 
 Der Rich-Text-Editor mit AutoSave-Status in der oberen linken Ecke („Änderungen erkannt…" → „Gespeichert ✓"), unten die Feedback-Historie vom Ausbilder:
 
-<!-- HIER report-editor.png reinziehen -->
+<img width="1291" height="713" alt="report-editor" src="https://github.com/user-attachments/assets/1f5c3c9e-9b7a-4e26-9aad-351909f79e68" />
+
 
 ### Für Ausbilder
 
 Matrix mit allen Azubis und deren Wochenstatus auf einen Blick, mit Suche und Filter für offene Berichte:
 
-<!-- HIER dashboard-ausbilder.png reinziehen -->
+<img width="1024" height="526" alt="dashboard-ausbilder" src="https://github.com/user-attachments/assets/b604b581-4bdd-46f8-a361-8d6e0bef3d83" />
+
 
 Bericht-Detail eines Azubis mit der vollständigen Kommentar-Historie:
 
-<!-- HIER report-detail.png reinziehen -->
+<img width="1024" height="595" alt="report-detail" src="https://github.com/user-attachments/assets/c3715fe5-9962-4a0b-87f2-1bf203dce1cb" />
+
 
 Review-Modal mit Freigeben- und Zurückweisen-Buttons plus Kommentarfeld für Feedback:
 
-<!-- HIER review-modal.png reinziehen -->
+<img width="1024" height="595" alt="review-modal" src="https://github.com/user-attachments/assets/1d1f20ed-c2cf-4395-bc92-cf254fadfe8e" />
+
 
 ### Export
 
 Berichte als PDF herunterladen, entweder für einen Zeitraum oder alle auf einmal:
 
-<!-- HIER pdf-export.png reinziehen -->
+<img width="1023" height="541" alt="pdf-export" src="https://github.com/user-attachments/assets/63392089-e681-4b02-85b7-16e2419eb4ab" />
+
 
 ## Tech
 
@@ -171,4 +177,4 @@ Yamen Machnouk · München · GitHub [@Yamensko](https://github.com/Yamensko)
 
 ---
 
-*Transparenzhinweis: Claude (Anthropic) habe ich als Pair-Programmer verwendet, besonders bei der Graph-API-Integration, dem PDF-Export und der Token-Verwaltung. Vorschläge habe ich erst übernommen nachdem ich verstanden habe wie sie funktionieren. Das meiste wofür AI gelaufen ist war aber Repository-Cleanup und Dokumentation, deshalb taucht Claude auch als Co-Author in manchen Commits auf.*
+*Transparenzhinweis: Claude (Anthropic) habe ich als Pair-Programmer verwendet, besonders bei der Graph-API-Integration, dem PDF-Export und der Token-Verwaltung. Vorschläge habe ich erst übernommen nachdem ich verstanden habe wie sie funktionieren. Das meiste wofür AI gelaufen ist war aber Repository-Cleanup, Kommentare und Dokumentation, deshalb taucht Claude auch als Co-Author in manchen Commits auf.*
