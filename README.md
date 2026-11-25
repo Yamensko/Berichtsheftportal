@@ -173,7 +173,7 @@ Die App-Registrierung braucht in Entra ID die delegierten Berechtigungen `User.R
 
 ## Autor
 
-Yamen Machnouk · München · GitHub [@Yamensko](https://github.com/Yamensko)
+Yamen Machnouk · GitHub [@Yamensko](https://github.com/Yamensko)
 
 ---
 
